@@ -19,17 +19,19 @@ public class MainActivity extends AppCompatActivity {
          *          ---为了能够顺利启动SecondActivity,我们必须劫持AMS，包装SecondActiviy，然后在还原成SecondActivity-------> SecondActivity
          */
         Intent intent = new Intent(this, SecondActivity.class);
-        intent.getComponent();
         /**
-         * Activity this.startActivity(intent, null)-----> Activity startActivityForResult(intent, -1) -----> Activity startActivityForResult(intent, requestCode, null) ---
-         *          ----> 上个方法中的 Instrumentation.ActivityResult ar = mInstrumentation.execStartActivity(this, mMainThread.getApplicationThread(), mToken, this,
-         *              intent, requestCode, options) ------> Instrumentation.class execStartActivity()-----> 上个方法中的int result = ActivityManager.getService().startActivity（）
+         * 基于sdk25  android系统版本为8.0
+         * Activity.class this.startActivity(intent, null)-----> Activity.class startActivityForResult(intent, -1) -----> Activity.class startActivityForResult(intent, requestCode, null) ---
+         *          ----> 在上个方法中执行下面的方法 Instrumentation.ActivityResult ar = mInstrumentation.execStartActivity(this, mMainThread.getApplicationThread(), mToken, this,
+         *              intent, requestCode, options) ------> Instrumentation.class execStartActivity()-----> 在上个方法中执行此方法：int result = ActivityManagerNative.getDefault().startActivity（）
          *
-         *              最终调用到 ActivityManager.getService().startActivity（）方法中
-         *              1.先看 ActivityManager.getService() 这个静态方法 返回一个IActivityManager对象,实际是一个Binder对象，这个对象实际是由Singleton.create()创建的；
-         *              IActivityManager 是一个与AMS进行通话的系统私有API对象，它提供了从应用程序返回到AMS的调用；
-         *              2.最终调用startActiviy 对象是ActiviyManager中的IActivityMananger对象，而这个IActivityMananger对象不是静态的，而IActivityMananger这个对象是Singleton对象的属性，
-         *                      这个Singleton对象是静态的
+         *              最终调用到 ActivityManagerNative.getDefault().startActivity（）方法中
+         *
+         *              1.先看 ActivityManagerNative.getDefault() 这个静态方法，返回一个IActivityManager对象,实际是一个Binder对象，这个对象实际是由Singleton.create()创建的；
+         *              IActivityManager 是一个与AMS进行通话的系统私有API对象，它提供了从应用程序返回到ActivityMananger的调用；
+         *              2.最终调用IActivityManager对象的startActiviy方法，而这个IActivityMananger对象不是静态的，而IActivityMananger这个对象是Singleton对象的属性，
+         *                      而这个Singleton对象是静态的，所以就可以找到系统的Singleton对象，就可以找到系统的IActivityMananger对象进行动态代理；
+         *
          *
          *
          */

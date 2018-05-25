@@ -115,10 +115,12 @@ public class HookUtils {
             }
             if (realIntent != null) {
                 //集中式登录逻辑
+                //todo 如果没有登录----------作出以下处理
                 if (false) {
                     //还原-----替换proxyIntent中的要跳转的activity，然后进行真正的跳转
                     proxyIntent.setComponent(realIntent.getComponent());
                 }else{
+                    //// TODO: 2018/5/25  登录完成 进行还原真实Intent
                     ComponentName cn = new ComponentName(context, LoginActivity.class);
                     proxyIntent.setComponent(cn);
                     //把要跳转的真正的类，放到一个参数中，带到LoginActivity中，登录完后，跳转到真正的类

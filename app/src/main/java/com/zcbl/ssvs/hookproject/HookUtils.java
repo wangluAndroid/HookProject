@@ -3,14 +3,19 @@ package com.zcbl.ssvs.hookproject;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+
+import dalvik.system.DexClassLoader;
+import dalvik.system.PathClassLoader;
 
 /**
  * Created by serenitynanian on 2018/5/23.
@@ -36,13 +41,14 @@ public class HookUtils {
          */
 
         try {
-            Class<?> aClass = Class.forName("android.app.ActivityManagerNative");
+            Class aClass = Class.forName("android.app.ActivityManagerNative");
             Field iActivityManagerSingletonFiled = aClass.getDeclaredField("gDefault");
             iActivityManagerSingletonFiled.setAccessible(true);//该方法修饰符为：private static final
             //因为是静态的变量，所有可以直接获取，传个null即可；如果是非静态的，需要传个对象；
             Object gDefaultObj = iActivityManagerSingletonFiled.get(null);
 
-//            Class<?> singleClass = gDefaultObj.getClass();//不能使用此种方式，因为gDefault为Object对象，没有mInstance属性，反射无法找到
+//            Class singleClass = gDefaultObj.getClass();//不能使用此种方式，因为Singleton这个类也是@hide，经过反射得到的gDefaultObj为：ActivityManagerNative$1@3771,
+//                      1@3771并不是Singleton对象，所以系统找不到mInstance属性，反射无法找到；只能通过全类名找到
             Class<?> singleClass = Class.forName("android.util.Singleton");
             Field mInstance = singleClass.getDeclaredField("mInstance");
             mInstance.setAccessible(true);
@@ -105,6 +111,7 @@ public class HookUtils {
         try {
             Field intentField=object.getClass().getDeclaredField("intent");
             intentField.setAccessible(true);
+
             Intent proxyIntent = (Intent) intentField.get(object);
             //取出真实的Intent
             Intent realIntent = proxyIntent.getParcelableExtra("realIntent");
@@ -122,9 +129,11 @@ public class HookUtils {
                 }else{
                     //// TODO: 2018/5/25  登录完成 进行还原真实Intent
                     ComponentName cn = new ComponentName(context, LoginActivity.class);
-                    proxyIntent.setComponent(cn);
                     //把要跳转的真正的类，放到一个参数中，带到LoginActivity中，登录完后，跳转到真正的类
                     proxyIntent.putExtra("realGoToActivity", realIntent.getComponent().getClassName());
+
+                    proxyIntent.setComponent(cn);
+
                 }
 
             }
@@ -214,6 +223,84 @@ public class HookUtils {
             }
             //只是添加一些自己的逻辑，最终还是调用真实的方法
             return method.invoke(realObject,args);
+        }
+
+
+        /**
+         * 插件未安装apk的dex-------> Element
+         */
+        public void injectPluginClass(){
+            String cachePath = context.getCacheDir().getAbsolutePath();
+            String apkPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/plugin.apk";
+            //DexClassLoader可以加载任意路径下的apk--->dex
+            DexClassLoader dexClassLoader = new DexClassLoader(apkPath, cachePath, cachePath, context.getClassLoader());
+
+            //1.找到  插件中的Elements数组   DexPathList------>dexElements
+            try {
+                Class<?> aClass = Class.forName("dalvik.system.BaseDexClassLoader");
+                Field dexPathList = aClass.getDeclaredField("DexPathList");
+                dexPathList.setAccessible(true);
+                Object dexPathListObj = dexPathList.get(dexClassLoader);
+
+                //在拿到DexPathList中的dexElements数组
+                Class<?> aClass1 = dexPathListObj.getClass();
+                Field dexElements = aClass1.getDeclaredField("dexElements");
+                dexElements.setAccessible(true);
+                //自己插件中的dexElements[]数组
+                Object dexElementsObj = dexElements.get(dexPathListObj);
+
+
+                //2.找到   系统的Elements数组 dexElements
+                //系统的class都是经过PathClassLoader加载的
+                PathClassLoader pathClassLoader = (PathClassLoader) context.getClassLoader();
+                Class<?> systemClass = Class.forName("dalvik.system.BaseDexClassLoader");
+                Field systemDexPathList = systemClass.getDeclaredField("DexPathList");
+                systemDexPathList.setAccessible(true);
+                Object systemDexPathListObj = dexPathList.get(pathClassLoader);
+
+                //在拿到DexPathList中的dexElements数组
+                Class<?> systemClass1 = systemDexPathListObj.getClass();
+                Field systemDexElements = systemClass1.getDeclaredField("dexElements");
+                systemDexElements.setAccessible(true);
+                //自己插件中的dexElements[]数组
+                Object systemDexElementsObj = systemDexElements.get(systemDexPathListObj);
+
+
+                //3. 上面的两个 dexElements数组 合并成新的dexElements  然后通过反射重新注入系统的field(系统的dexElements)
+                // 创建新的Element[]对象  数组长度是上面两个Element[]相加
+                int  systemLength = Array.getLength(systemDexElementsObj);
+                int  pluginLength = Array.getLength(dexElementsObj);
+                int totalLength = systemLength+pluginLength;
+                //dalvik.system.Element
+                //找到Element的Class类型  数组  每一个成员类型
+                Class<?> componentType = systemDexElementsObj.getClass().getComponentType();
+                Object newElementsArray = Array.newInstance(componentType, totalLength);
+
+
+                //融合
+                for (int i = 0 ;i<totalLength;i++) {
+                    if (i < pluginLength) {
+                        Array.set(newElementsArray, i, Array.get(dexElementsObj, i));
+                    }else{
+                        Array.set(newElementsArray,i,Array.get(systemDexElementsObj,i-pluginLength));
+                    }
+                }
+
+                Field elementsFields = systemDexElementsObj.getClass().getDeclaredField("dexElements");
+                elementsFields.setAccessible(true);
+                //将新生产的Elements数组对象重新放到系统中去
+                elementsFields.set(systemDexElementsObj,newElementsArray);
+
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+
+
+
         }
     }
 }

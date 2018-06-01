@@ -26,7 +26,22 @@
 * 1.动态代理（适合所有场景）
 * 2.利用系统内部提供的接口，通过实现接口，然后注入进系统（特定场景不适用）
 
-##### 三、本项目实现功能----免在AndroidManifest.xml注册式跳转与集中式登录
+
+
+##### 四、注意事项
+~~~
+/**
+ * Created by serenitynanian on 2018/5/23.
+ *
+ * todo    注意事项如下：不能继承AppCompatActivity
+ *
+ * 所有的Activity必须继承自Activity,如果继承自AppCompatActivity就会报出
+ * java.lang.RuntimeException: Unable to start activity ComponentInfo{com.zcbl.ssvs.hookproject/com.zcbl.ssvs.hookproject.LoginActivity}:
+ * java.lang.IllegalArgumentException: android.content.pm.PackageManager$NameNotFoundException: ComponentInfo{com.zcbl.ssvs.hookproject/com.zcbl.ssvs.hookproject.LoginActivity}
+ */
+ ~~~
+
+##### 五、本项目实现功能----免在AndroidManifest.xml注册式跳转与集中式登录
 * 1.hook startActivity，隐藏真实Intent意图，替换为要跳转到proxyActivity的Intent意图，因为ProxyActivity是被AndroidManifest.xml中注册过的，通过此方式，绕过AMS检查；
 
 

@@ -107,6 +107,7 @@ public class HookUtils {
     private void handlerLaunchActivity(Message msg){
 
         //msg有个Intent的成员变量
+        //这个object的真实类型是：ActivityClientRecord 这个类里面有个intent成员变量
         Object object = msg.obj;
         try {
             Field intentField=object.getClass().getDeclaredField("intent");
@@ -228,6 +229,8 @@ public class HookUtils {
 
         /**
          * 插件未安装apk的dex-------> Element
+         *
+         * 此步骤只是融合class，resources还没有融合到一起
          */
         public void injectPluginClass(){
             String cachePath = context.getCacheDir().getAbsolutePath();
